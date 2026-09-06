@@ -13,6 +13,7 @@ urlpatterns = [
         re_path(r'^query/(?P<subpath>.+)$', views.query_view, name='query'),
         re_path(r'^assistant/(?P<pk>\d+)/edit/$', views.edit_assistant, name='edit_assistant'),
         re_path(r'^upload/(?P<pk>\d+)/$', views.upload_file_view, name='upload'),
+        path('upload/<int:pk>/status/<uuid:upload_id>/', views.upload_status_view, name='upload_status'),
         re_path(r'^assistant/(?P<pk>\d+)/delete/$', views.delete_assistant, name='delete_assistant'),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

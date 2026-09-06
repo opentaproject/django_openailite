@@ -4,12 +4,14 @@ from django.utils import timezone
 import logging
 from django.http import HttpResponseForbidden, JsonResponse
 from django.conf import settings
+from django.core.cache import cache
 from django import forms
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 import time
 import re
+import uuid
 
 from .forms import QueryForm
 from .utils import doarchive, CHOICES, get_assistant, mathfix, messages_to_pdf
@@ -65,14 +67,39 @@ class AssistantEditForm(forms.ModelForm):
 #    return render(request, 'django_ragamuffin/upload.html')
 
 
+def _upload_progress_key(upload_id):
+    try:
+        upload_id = uuid.UUID(str(upload_id))
+    except (TypeError, ValueError):
+        return None
+    return f"django_ragamuffin_upload:{upload_id}"
+
+
+def upload_status_view(request, pk, upload_id):
+    status = cache.get(_upload_progress_key(upload_id))
+    return JsonResponse(status or {"completed": 0, "total": 0})
+
+
 def upload_file_view(request,pk):
     if request.method == 'POST' and request.FILES.get('myfile'):
         files = request.FILES.getlist('myfile')
-        for f in files :
-            filename = f.name 
-            assistant =  Assistant.objects.get(pk=pk)
-            file_url = assistant.add_file( filename, f)
-            r = render(request, 'django_ragamuffin/upload.html', {'file_url': file_url})
+        progress_key = _upload_progress_key(request.POST.get("upload_id"))
+        total = len(files)
+        if progress_key:
+            cache.set(progress_key, {"completed": 0, "total": total}, 600)
+        completed = 0
+        try:
+            assistant = Assistant.objects.get(pk=pk)
+            for f in files:
+                filename = f.name
+                assistant.add_file(filename, f)
+                completed += 1
+                if progress_key:
+                    cache.set(progress_key, {"completed": completed, "total": total}, 600)
+        except Exception:
+            if progress_key:
+                cache.set(progress_key, {"completed": completed, "total": total, "failed": True}, 600)
+            raise
         return redirect(f"/django_ragamuffin/assistant/{pk}/edit/")
 
     return render(request, 'django_ragamuffin/upload.html')
