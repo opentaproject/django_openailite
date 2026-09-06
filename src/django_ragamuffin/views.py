@@ -22,8 +22,16 @@ logger = logging.getLogger(__name__)
 
 class AssistantEditForm(forms.ModelForm):
 
-    actual_instructions = forms.CharField(disabled=True, required=False, widget=forms.Textarea(attrs={'disabled': 'disabled'}),)
-    directory_name = forms.CharField(required=False, help_text=mark_safe('<div class="instructions"> Change name of the directory </div> ') )
+    actual_instructions = forms.CharField(
+        disabled=True,
+        required=False,
+        widget=forms.Textarea(attrs={"disabled": "disabled", "rows": 1}),
+    )
+    directory_name = forms.CharField(
+        required=False,
+        help_text=mark_safe('<div class="instructions"> Change name of the directory </div> '),
+        widget=forms.TextInput(attrs={"form": "assistant-settings-form"}),
+    )
     
 
     def __init__(self, *args, **kwargs):
@@ -46,7 +54,11 @@ class AssistantEditForm(forms.ModelForm):
 
     class Meta:
         model = Assistant
-        fields = ['mode_choice','instructions','actual_instructions', 'temperature','directory_name']
+        fields = ['mode_choice','actual_instructions', 'instructions', 'temperature','directory_name']
+        widgets = {
+            "mode_choice": forms.RadioSelect(attrs={"class": "mode-choice-options"}),
+            "instructions": forms.Textarea(attrs={"rows": 5}),
+        }
         help_texts = {
             'directory_name' : "Only the last directory can be renmamed; all children will be renamed",
             'temperature': f"<p/>Default temperature = {settings.DEFAULT_TEMPERATURE}",
@@ -67,39 +79,47 @@ class AssistantEditForm(forms.ModelForm):
 #    return render(request, 'django_ragamuffin/upload.html')
 
 
-def _upload_progress_key(upload_id):
+def _operation_progress_key(operation, operation_id):
     try:
-        upload_id = uuid.UUID(str(upload_id))
+        operation_id = uuid.UUID(str(operation_id))
     except (TypeError, ValueError):
         return None
-    return f"django_ragamuffin_upload:{upload_id}"
+    return f"django_ragamuffin:{operation}:{operation_id}"
+
+
+def _process_with_progress(items, progress_key, process):
+    total = len(items)
+    completed = 0
+    if progress_key:
+        cache.set(progress_key, {"completed": completed, "total": total}, 600)
+    try:
+        for item in items:
+            process(item)
+            completed += 1
+            if progress_key:
+                cache.set(progress_key, {"completed": completed, "total": total}, 600)
+    except Exception:
+        if progress_key:
+            cache.set(progress_key, {"completed": completed, "total": total, "failed": True}, 600)
+        raise
 
 
 def upload_status_view(request, pk, upload_id):
-    status = cache.get(_upload_progress_key(upload_id))
+    status = cache.get(_operation_progress_key("upload", upload_id))
+    return JsonResponse(status or {"completed": 0, "total": 0})
+
+
+def deletion_status_view(request, pk, deletion_id):
+    status = cache.get(_operation_progress_key("deletion", deletion_id))
     return JsonResponse(status or {"completed": 0, "total": 0})
 
 
 def upload_file_view(request,pk):
     if request.method == 'POST' and request.FILES.get('myfile'):
         files = request.FILES.getlist('myfile')
-        progress_key = _upload_progress_key(request.POST.get("upload_id"))
-        total = len(files)
-        if progress_key:
-            cache.set(progress_key, {"completed": 0, "total": total}, 600)
-        completed = 0
-        try:
-            assistant = Assistant.objects.get(pk=pk)
-            for f in files:
-                filename = f.name
-                assistant.add_file(filename, f)
-                completed += 1
-                if progress_key:
-                    cache.set(progress_key, {"completed": completed, "total": total}, 600)
-        except Exception:
-            if progress_key:
-                cache.set(progress_key, {"completed": completed, "total": total, "failed": True}, 600)
-            raise
+        progress_key = _operation_progress_key("upload", request.POST.get("upload_id"))
+        assistant = Assistant.objects.get(pk=pk)
+        _process_with_progress(files, progress_key, lambda f: assistant.add_file(f.name, f))
         return redirect(f"/django_ragamuffin/assistant/{pk}/edit/")
 
     return render(request, 'django_ragamuffin/upload.html')
@@ -144,9 +164,9 @@ def edit_assistant(request, pk):
     if request.method == 'POST':
         deletions = request.POST.getlist('deletion')
         if deletions :
-            for f in deletions :
-                #print(f"DELETE THE FILE {f}")
-                assistant.delete_file(f)
+            progress_key = _operation_progress_key("deletion", request.POST.get("deletion_id"))
+            _process_with_progress(deletions, progress_key, assistant.delete_file)
+            return redirect('edit_assistant', pk=assistant.pk)
         new_tail = request.POST.getlist('directory_name',[None])[0]
         old_tail = assistant.name.split('.')[-1];
         #print(f"OLD_TAIL = {old_tail} NEW_TAIL={new_tail}")

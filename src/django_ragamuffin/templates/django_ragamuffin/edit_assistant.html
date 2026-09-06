@@ -8,80 +8,35 @@
                 return confirm("Are you sure you want to these files? The assistant will be rebuilt. It may take a minute or two.");
             }
 	  </script>
-
-    <style>
-     a {
-  	color: blue;
-  	text-decoration: none;
-	}
-      .instructions {
-        display: block;
-        margin: 5px 0 10px 0;
-        padding-left: 0;
-        width: 100%;
-        font-size: 14px;
-        color: #666;
-        float: none;
-        clear: both;
-      }
-
-      .actual_instructions {
-        display: block;
-        width: 100%;
-        margin: 5px 0 10px 0;
-        padding-left: 0;
-        font-size: 14px;
-        color: #666;
-        float: none;
-        clear: both;
-      }
-
-      textarea  {
-        font-size: 10px;
-        width: 100%;
-        width: calc(0.6em * 80);
-        box-sizing: border-box;
-        resize: none;
-
-
-      }
-
-      .temperature{
-        display: block;
-        margin: 5px 0 10px 0;
-        padding-left: 0;
-        font-size: 14px;
-        color: #666;
-        float: none;
-        clear: both;
-      }
-      body {
-  padding: 50px;
-  margin: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh; /* ensures full height */
-  box-sizing: border-box;
-}
-
-
-
-    </style>
+    <link rel="stylesheet" href="{% static 'django_ragamuffin/styles.css' %}">
   </head>
-  <body style="backgroundColor=pink; display: flex; justify-content: center;  height: 100vh; margin: 0;">
+  <body class="ragamuffin-page assistant-editor-page">
     <div class='container'>
 
 
       {% block content %}
+      <h1 class="assistant-page-title">Edit Assistant: <a href="/django_ragamuffin/query/{{ assistant.name  | replace:".,/" }}">{{ assistant.name  | replace:".,/" }} </a></h1>
       <div class="runtime-configuration">
         <strong>Database:</strong> {{ ragamuffin_database }} ({{ ragamuffin_database_alias }})<br>
         <strong>AI model:</strong> {{ ai_model }}
       </div>
-      <h4>Edit Assistant: <a href="/django_ragamuffin/query/{{ assistant.name  | replace:".,/" }}">{{ assistant.name  | replace:".,/" }} </a> </h4>
-	<b> All files </b>
-        <div style="margin: 2 auto; padding: 0rem;  ">
+      <section class="assistant-section directory-section">
+        <h3>Directory name</h3>
+        {{ form.directory_name }}
+        {% if form.directory_name.help_text %}
+          {{ form.directory_name.help_text | safe }}
+        {% endif %}
+        {% for error in form.directory_name.errors %}
+          <div class="error">{{ error }}</div>
+        {% endfor %}
+      </section>
 
+	<section class="assistant-section files-section">
+	<h3>Files</h3>
+	<b> All files </b>
+        <div class="assistant-file-list">
+
+	<div class="all-file-entries">
 	{% if form.custom_data %}
             {% for k,v,c,path  in  form.custom_data %}
 	    <small>
@@ -91,31 +46,44 @@
 	    </small>
             {% endfor %}
 	  {% endif %}
+	</div>
 
 	{% if form.local_files %}
-	<p/> <b> Local files </b>
-          <form method="post" style="display: inline;" >
+	<div class="local-files-section">
+	  <b class="file-list-heading"> Local files </b>
+	          <form id="deletion-form" method="post">
             {% csrf_token %}
+	    <div class="local-file-entries">
             {% for k,v,c,path  in  form.local_files %}
 	    <small>
 		    [ <span name='file_row' class="form-row"> <input name="deletion" type="checkbox" value="{{ k }}"> </input> 
 			    <a href="/django_ragamuffin/media/{{path}}"> {{v}} </a>  </span> ]
 	    </small>
             {% endfor %}
-	 <div>
-	<button onclick="return confirmDeleteFile()" type="submit">Delete checked local files :  </button> 
-	 </div>
-          </form>
+	    </div>
+		 <div id="deletion-progress-container" hidden>
+		   <progress id="deletion-progress" value="0" max="1"></progress>
+		   <span id="deletion-progress-text" aria-live="polite"></span>
+		 </div>
+	          </form>
+	</div>
 	  {% endif %}
 
-
-	  <p/>
-	  <a href="/django_ragamuffin/upload/{{assistant.pk}}/"> <button> Upload new file  for the assistant <b>{{ assistant.name }}</b> </button> </a>
+	  <div class="file-actions">
+	  {% if form.local_files %}
+	    <button id="deletion-button" class="assistant-action-button delete-files-button" form="deletion-form" onclick="return confirmDeleteFile()" type="submit">Delete checked local files :  </button>
+	  {% endif %}
+	    <a class="upload-assistant-link" href="/django_ragamuffin/upload/{{assistant.pk}}/"> <button class="assistant-action-button upload-file-button"> Upload new file  for the assistant <b>{{ assistant.name }}</b> </button> </a>
+	  </div>
         </div>
+	</section>
 
-        <form method="post">
+        <section class="assistant-section instructions-section">
+        <h3>Instructions</h3>
+        <form id="assistant-settings-form" method="post">
           {% csrf_token %}
           {% for field in form %}
+            {% if field.name != "directory_name" %}
             <div class="{{ field.name}}" >
               <h4> {{ field.label_tag}} </h4>
               <div class="{{ field.name}}">
@@ -128,10 +96,37 @@
                 <div class="error">{{ error }}</div>
               {% endfor %}
             </div>
+            {% endif %}
           {% endfor %}
-          <button type="submit">Submit</button>
+          <button class="assistant-action-button submit-assistant-button" type="submit">Submit</button>
         </form>
+        </section>
       {% endblock %}
     </div>
-  </body>
+	<script src="{% static 'django_ragamuffin/batch-progress.js' %}"></script>
+	<script>
+	  function fitActualInstructions() {
+	    const textarea = document.getElementById("id_actual_instructions");
+	    if (!textarea) return;
+	    textarea.style.height = "auto";
+	    textarea.style.height = `${textarea.scrollHeight}px`;
+	  }
+
+	  window.addEventListener("load", fitActualInstructions);
+	  window.addEventListener("resize", fitActualInstructions);
+
+	  setupBatchProgress({
+	    formId: "deletion-form",
+	    itemType: "checked",
+	    itemSelector: 'input[name="deletion"]:checked',
+	    controlsSelector: 'input[name="deletion"], #deletion-button',
+	    idField: "deletion_id",
+	    statusPath: "deletion-status",
+	    progressContainerId: "deletion-progress-container",
+	    progressId: "deletion-progress",
+	    progressTextId: "deletion-progress-text",
+	    operationName: "deletion",
+	  });
+	</script>
+	  </body>
 </html>

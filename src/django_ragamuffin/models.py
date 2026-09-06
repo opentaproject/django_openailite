@@ -1423,23 +1423,24 @@ class Assistant( models.Model ):
         f = list( set( f) )
         return f
 
-    def files( self, *args, **kwargs ):
-        vs = self.get_vector_stores()
+    @staticmethod
+    def _sort_file_rows(file_rows):
+        return sorted(file_rows, key=lambda row: row[1].casefold())
+
+    @classmethod
+    def _file_rows(cls, vector_stores):
         f = []
-        for v in vs :
+        for v in vector_stores:
             for vf in v.files.all():
                 path = upload_original_relative_path(vf.file.path)
                 f.append( ( vf.pk , vf.name , vf.checksum, path ) )
-        return f
+        return cls._sort_file_rows(f)
+
+    def files( self, *args, **kwargs ):
+        return self._file_rows(self.get_vector_stores())
 
     def local_files( self, *args, **kwargs ):
-        vs = self.vector_stores.all();
-        f = []
-        for v in vs :
-            for vf in v.files.all():
-                path = upload_original_relative_path(vf.file.path)
-                f.append( ( vf.pk , vf.name ,vf.checksum, path ) )
-        return f
+        return self._file_rows(self.vector_stores.all())
 
 
 

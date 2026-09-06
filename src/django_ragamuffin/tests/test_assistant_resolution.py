@@ -15,6 +15,14 @@ class AssistantResolutionTests(TestCase):
         self.staff = QUser.objects.create(username="staff", subdomain="base", is_staff=True)
         self.student = QUser.objects.create(username="student", subdomain="base", is_staff=False)
 
+    def test_file_rows_are_sorted_case_insensitively(self):
+        rows = [(1, "zeta.txt"), (2, "Alpha.txt"), (3, "beta.txt")]
+
+        self.assertEqual(
+            Assistant._sort_file_rows(rows),
+            [(2, "Alpha.txt"), (3, "beta.txt"), (1, "zeta.txt")],
+        )
+
     def test_normalizes_url_path_to_dotted_name(self):
         self.assertEqual(normalize_assistant_name("base/sub1/sub2"), "base.sub1.sub2")
 

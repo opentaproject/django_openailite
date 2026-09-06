@@ -1,6 +1,9 @@
 {% load static %}
 <html>
-<body>
+<head>
+  <link rel="stylesheet" href="{% static 'django_ragamuffin/styles.css' %}">
+</head>
+<body class="ragamuffin-page upload-page">
 <form id="upload-form" method="POST" enctype="multipart/form-data">
   {% csrf_token %}
   <input id="upload-files" type="file" name="myfile" multiple required>
@@ -13,76 +16,19 @@
 {% if file_url %}
   <p>Uploaded file: <a href="{{ file_url }}">{{ file_url }}</a></p>
 {% endif %}
+<script src="{% static 'django_ragamuffin/batch-progress.js' %}"></script>
 <script>
-  document.getElementById("upload-form").addEventListener("submit", async function (event) {
-    event.preventDefault();
-
-    const form = event.currentTarget;
-    const fileInput = document.getElementById("upload-files");
-    const uploadButton = document.getElementById("upload-button");
-    const progressContainer = document.getElementById("upload-progress-container");
-    const progress = document.getElementById("upload-progress");
-    const progressText = document.getElementById("upload-progress-text");
-    const files = Array.from(fileInput.files);
-    const total = files.length;
-    const uploadId = crypto.randomUUID();
-    const formData = new FormData(form);
-    formData.append("upload_id", uploadId);
-
-    uploadButton.disabled = true;
-    fileInput.disabled = true;
-    progress.max = total;
-    progress.value = 0;
-    progressContainer.hidden = false;
-    progressText.textContent = `0/${total} completed`;
-
-    const statusUrl = `${window.location.pathname}status/${uploadId}/`;
-    let polling = false;
-
-    async function updateProgress() {
-      if (polling) {
-        return;
-      }
-      polling = true;
-      try {
-        const response = await fetch(statusUrl, { credentials: "same-origin" });
-        if (response.ok) {
-          const status = await response.json();
-          const completed = Math.min(status.completed, total);
-          progress.value = completed;
-          progressText.textContent = `${completed}/${total} completed`;
-          if (status.failed) {
-            progressText.textContent += " — upload failed";
-          }
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        polling = false;
-      }
-    }
-
-    const intervalId = window.setInterval(updateProgress, 1000);
-    try {
-      const response = await fetch(form.action || window.location.href, {
-        method: "POST",
-        body: formData,
-        credentials: "same-origin",
-      });
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
-      }
-
-      await updateProgress();
-      window.location.assign(response.url);
-    } catch (error) {
-      progressText.textContent = `${progress.value}/${total} completed — upload failed`;
-      uploadButton.disabled = false;
-      fileInput.disabled = false;
-      console.error(error);
-    } finally {
-      window.clearInterval(intervalId);
-    }
+  setupBatchProgress({
+    formId: "upload-form",
+    itemType: "files",
+    itemSelector: "#upload-files",
+    controlsSelector: "#upload-files, #upload-button",
+    idField: "upload_id",
+    statusPath: "status",
+    progressContainerId: "upload-progress-container",
+    progressId: "upload-progress",
+    progressTextId: "upload-progress-text",
+    operationName: "upload",
   });
 </script>
 </body>
