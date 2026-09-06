@@ -15,7 +15,7 @@
 
 
       {% block content %}
-      <h1 class="assistant-page-title">Edit Assistant: <a href="/django_ragamuffin/query/{{ assistant.name  | replace:".,/" }}">{{ assistant.name  | replace:".,/" }} </a></h1>
+      <h2 class="assistant-page-title">Edit Assistant: <a href="/django_ragamuffin/query/{{ assistant.name  | replace:".,/" }}">{{ assistant.name  | replace:".,/" }} </a></h2>
       <div class="runtime-configuration">
         <strong>Database:</strong> {{ ragamuffin_database }} ({{ ragamuffin_database_alias }})<br>
         <strong>AI model:</strong> {{ ai_model }}

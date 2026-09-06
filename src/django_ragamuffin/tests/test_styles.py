@@ -54,7 +54,7 @@ class TemplateStylesTests(SimpleTestCase):
         self.assertLess(heading, directory)
         self.assertLess(directory, files)
         self.assertLess(files, instructions)
-        self.assertIn('class="assistant-page-title"', source)
+        self.assertIn('<h2 class="assistant-page-title">', source)
         self.assertEqual(
             AssistantEditForm.base_fields["directory_name"].widget.attrs["form"],
             "assistant-settings-form",
@@ -95,3 +95,4 @@ class TemplateStylesTests(SimpleTestCase):
         self.assertIn(".assistant-editor-page > .container", stylesheet)
         self.assertIn("width: 95%", stylesheet)
         self.assertIn("align-items: flex-start", stylesheet)
+        self.assertIn("font-size: 0.7rem", stylesheet)
